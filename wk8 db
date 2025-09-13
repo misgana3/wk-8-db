@@ -1,0 +1,150 @@
+ answers.sql
+-- Assignment: Build a Complete Database Management System (E-commerce Store)
+-- Deliverable: CREATE DATABASE + CREATE TABLE statements with constraints & relationships
+-- NOTE: This schema targets MySQL (InnoDB). Adjust names/types to your environment if needed.
+
+-- Create the database and switch to it
+CREATE DATABASE IF NOT EXISTS ecommerce_db
+    DEFAULT CHARACTER SET = utf8mb4
+    DEFAULT COLLATE = utf8mb4_unicode_ci;
+USE ecommerce_db;
+
+--------------------------------------------------------------------------------
+-- TABLE: customers
+-- Stores customer basic info
+--------------------------------------------------------------------------------
+CREATE TABLE customers (
+    customer_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    phone VARCHAR(30),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+--------------------------------------------------------------------------------
+-- TABLE: addresses
+-- One customer can have many addresses (one-to-many)
+--------------------------------------------------------------------------------
+CREATE TABLE addresses (
+    address_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    customer_id INT UNSIGNED NOT NULL,
+    street VARCHAR(255) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    state VARCHAR(100),
+    postal_code VARCHAR(20),
+    country VARCHAR(100) NOT NULL,
+    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+--------------------------------------------------------------------------------
+-- TABLE: categories
+-- Product categories (one product may belong to many categories)
+--------------------------------------------------------------------------------
+CREATE TABLE categories (
+    category_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+) ENGINE=InnoDB;
+
+--------------------------------------------------------------------------------
+-- TABLE: products
+-- Product catalog
+--------------------------------------------------------------------------------
+CREATE TABLE products (
+    product_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    sku VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
+    quantity_in_stock INT NOT NULL DEFAULT 0,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+--------------------------------------------------------------------------------
+-- TABLE: product_categories
+-- Many-to-many between products and categories
+--------------------------------------------------------------------------------
+CREATE TABLE product_categories (
+    product_id INT UNSIGNED NOT NULL,
+    category_id INT UNSIGNED NOT NULL,
+    PRIMARY KEY (product_id, category_id),
+    FOREIGN KEY (product_id) REFERENCES products(product_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES categories(category_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+--------------------------------------------------------------------------------
+-- TABLE: orders
+-- Orders placed by customers (one-to-many: customer -> orders)
+--------------------------------------------------------------------------------
+CREATE TABLE orders (
+    order_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    customer_id INT UNSIGNED NOT NULL,
+    order_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    shipped_date DATETIME,
+    status ENUM('Pending','Processing','Shipped','Delivered','Cancelled') NOT NULL DEFAULT 'Pending',
+    shipping_address_id INT UNSIGNED,
+    billing_address_id INT UNSIGNED,
+    total_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00 CHECK (total_amount >= 0),
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (shipping_address_id) REFERENCES addresses(address_id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    FOREIGN KEY (billing_address_id) REFERENCES addresses(address_id)
+        ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+--------------------------------------------------------------------------------
+-- TABLE: order_items
+-- Many-to-many between orders and products with additional attributes
+-- Composite PK (order_id, product_id) ensures full dependency on composite key
+--------------------------------------------------------------------------------
+CREATE TABLE order_items (
+    order_id BIGINT UNSIGNED NOT NULL,
+    product_id INT UNSIGNED NOT NULL,
+    quantity INT UNSIGNED NOT NULL CHECK (quantity > 0),
+    price_each DECIMAL(10,2) NOT NULL CHECK (price_each >= 0),
+    PRIMARY KEY (order_id, product_id),
+    FOREIGN KEY (order_id) REFERENCES orders(order_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(product_id)
+        ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+--------------------------------------------------------------------------------
+-- TABLE: payments
+-- Payments for orders (one-to-many: order -> payments)
+--------------------------------------------------------------------------------
+CREATE TABLE payments (
+    payment_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_id BIGINT UNSIGNED NOT NULL,
+    payment_method ENUM('Credit Card','PayPal','Bank Transfer','Cash') NOT NULL,
+    transaction_ref VARCHAR(100),
+    payment_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    amount DECIMAL(12,2) NOT NULL CHECK (amount >= 0),
+    FOREIGN KEY (order_id) REFERENCES orders(order_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+--------------------------------------------------------------------------------
+-- OPTIONAL: employees table (example of another entity and one-to-many to orders if desired)
+--------------------------------------------------------------------------------
+CREATE TABLE employees (
+    employee_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    email VARCHAR(255) UNIQUE,
+    hire_date DATE,
+    active BOOLEAN NOT NULL DEFAULT TRUE
+) ENGINE=InnoDB;
+
+-- End of schema
